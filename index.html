@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0050)file:///Users/alexgislason/Downloads/index_23.html -->
+<!-- saved from url=(0050)file:///Users/alexgislason/Downloads/index_24.html -->
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -253,7 +253,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
   <button class="lightbox-close">×</button>
-  <img id="lightbox-img" src="file:///Users/alexgislason/Downloads/index_23.html" alt="">
+  <img id="lightbox-img" src="file:///Users/alexgislason/Downloads/index_24.html" alt="">
 </div>
 
 <div class="modal-overlay" id="add-modal">
@@ -599,19 +599,39 @@ function deleteCustomCat(name){
 }
 
 // ── PHOTOS ────────────────────────────────────────────
-function handlePhotoUpload(e){
+const CLOUDINARY_CLOUD = 'ddav4fm9l';
+const CLOUDINARY_PRESET = 'gfzgzjih';
+
+async function uploadToCloudinary(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_PRESET);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+    method: 'POST',
+    body: formData
+  });
+  const data = await res.json();
+  return data.secure_url;
+}
+
+async function handlePhotoUpload(e){
   const files=[...e.target.files]; if(!files.length)return;
   if(!state.activeTheme.photos)state.activeTheme.photos=[];
-  let loaded=0;
-  files.forEach(file=>{
-    const reader=new FileReader();
-    reader.onload=ev=>{
-      state.activeTheme.photos.push(ev.target.result);
-      loaded++; if(loaded===files.length){scheduleSave();renderPhotos();}
-    };
-    reader.readAsDataURL(file);
-  });
+  setStatus('busy', 'Uploading photos...');
+  let uploaded=0;
+  for (const file of files) {
+    try {
+      const url = await uploadToCloudinary(file);
+      state.activeTheme.photos.push(url);
+      uploaded++;
+      setStatus('busy', `Uploading ${uploaded}/${files.length}...`);
+    } catch(err) {
+      setStatus('err', 'Photo upload failed');
+    }
+  }
   e.target.value='';
+  syncActiveTheme(); scheduleSave(); renderPhotos();
+  setStatus('ok', 'Photos saved ✓');
 }
 function renderPhotos(){
   const photos=state.activeTheme.photos||[];
@@ -622,7 +642,7 @@ function renderPhotos(){
     <button class="photo-del" onclick="deletePhoto(${i})">×</button>
   </div>`).join('');
 }
-function deletePhoto(i){state.activeTheme.photos.splice(i,1);scheduleSave();renderPhotos();}
+function deletePhoto(i){state.activeTheme.photos.splice(i,1);syncActiveTheme();scheduleSave();renderPhotos();}
 function openLightbox(i){document.getElementById('lightbox-img').src=state.activeTheme.photos[i];document.getElementById('lightbox').classList.add('open');}
 function closeLightbox(){document.getElementById('lightbox').classList.remove('open');document.getElementById('lightbox-img').src='';}
 
